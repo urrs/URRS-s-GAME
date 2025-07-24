@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URRS JUMP</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #87CEEB;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+        }
+
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background-color: #333;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-size: 24px;
+            z-index: 10;
+        }
+
+        .game-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-size: cover;
+            background-image: url('awan_bg.png');
+            animation: changeBackground 20s infinite alternate;
+        }
+
+        @keyframes changeBackground {
+            0% { background-image: url('awan_bg.png'); }
+            50% { background-image: url('bulan_bg.png'); }
+            100% { background-image: url('malam_bg.png'); }
+        }
+
+        .character {
+            width: 100px;
+            height: 100px;
+            position: absolute;
+            bottom: 0;
+            left: 50px;
+            background-size: cover;
+            background-image: url('lari_pertama.png');
+            animation: run-animation 0.5s steps(2) infinite;
+        }
+
+        @keyframes run-animation {
+            0% { background-image: url('lari_pertama.png'); }
+            50% { background-image: url('lari_kedua.png'); }
+            100% { background-image: url('lari_pertama.png'); }
+        }
+
+        .obstacle {
+            background-image: url('benteng_ob.png');
+            position: absolute;
+            bottom: 0;
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+
+        .score {
+            font-size: 24px;
+        }
+
+        .restart-btn {
+            display: none;
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            font-size: 20px;
+            background-color: #FFD700;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .restart-btn:hover {
+            background-color: #FFB400;
+        }
+
+        #gameOverGif {
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            transform: translateX(-50%);
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .game-container {
+                height: 80%;
+            }
+            .character {
+                width: 70px;
+                height: 70px;
+            }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="navbar" id="navbar">
+        Score: <span id="score">0</span>
+    </div>
+
+    <div class="game-container" id="gameContainer">
+        <div class="character" id="character"></div>
+        <img id="gameOverGif" src="GAME_OVER.gif" alt="Game Over" />
+        <button class="restart-btn" id="restartBtn" onclick="restartGame()">Restart</button>
+    </div>
+
+    <script>
+        const gameContainer = document.getElementById("gameContainer");
+        const character = document.getElementById("character");
+        const scoreElement = document.getElementById("score");
+        const restartBtn = document.getElementById("restartBtn");
+        const gameOverGif = document.getElementById("gameOverGif");
+
+        let score = 0;
+        let isJumping = false;
+        let isDoubleJumping = false;
+        let isGameOver = false;
+        let characterPosition = 0;
+        let jumpSpeed = 10;
+        let singleJumpHeight = 200;
+        let doubleJumpHeight = 250;
+        let obstacleSpeed = 5;
+        let obstacles = [];
+        let obstacleInterval;
+
+        // Function to reset the game state
+        function resetGameState() {
+            isJumping = false;
+            isDoubleJumping = false;
+            characterPosition = 0;
+            score = 0;
+            scoreElement.textContent = score;
+            isGameOver = false;
+            restartBtn.style.display = "none";
+            gameOverGif.style.display = "none";
+
+            // Reset character's position and animation
+            character.style.bottom = `${characterPosition}px`;
+            character.style.left = `50px`;
+
+            // Remove all obstacles
+            obstacles.forEach(obstacle => gameContainer.removeChild(obstacle));
+            obstacles = [];
+
+            // Reset obstacle speed
+            obstacleSpeed = 5;
+
+            // Stop the current obstacle interval and start a new one
+            clearInterval(obstacleInterval);
+            obstacleInterval = setInterval(createObstacle, 2000);
+        }
+
+        // Function to create obstacles
+        function createObstacle() {
+            const obstacle = document.createElement("div");
+            obstacle.classList.add("obstacle");
+
+            const minWidth = 60;
+            const maxWidth = 100;
+            const minHeight = 40;
+            const maxHeight = 120;
+
+            const randomWidth = Math.floor(Math.random() * (maxWidth - minWidth + 1)) + minWidth;
+            const randomHeight = Math.floor(Math.random() * (maxHeight - minHeight + 1)) + minHeight;
+
+            obstacle.style.width = `${randomWidth}px`;
+            obstacle.style.height = `${randomHeight}px`;
+
+            obstacle.style.left = `${gameContainer.offsetWidth}px`;
+            gameContainer.appendChild(obstacle);
+            obstacles.push(obstacle);
+        }
+
+        // Calculate score based on obstacle size
+        function calculateScore(obstacleWidth) {
+            let scorePoints = 0;
+            if (obstacleWidth <= 60) {
+                scorePoints = 100; // Small obstacle
+            } else if (obstacleWidth <= 100) {
+                scorePoints = 150; // Medium obstacle
+            } else {
+                scorePoints = 250; // Large obstacle
+            }
+            return scorePoints;
+        }
+
+        // Jump logic (without horizontal movement)
+        function jump(isDoubleJump) {
+            if (isJumping) return;
+            isJumping = true;
+
+            let jumpHeight = isDoubleJump ? doubleJumpHeight : singleJumpHeight;
+            let currentHeight = 0;
+
+            const jumpUp = setInterval(() => {
+                if (currentHeight >= jumpHeight) {
+                    clearInterval(jumpUp);
+                    setTimeout(() => fall(), 300); // Remove currentPosition (no horizontal movement)
+                }
+                currentHeight += jumpSpeed;
+                character.style.bottom = `${currentHeight}px`;
+            }, 10);
+        }
+
+        // Falling down logic (without horizontal movement)
+        function fall() {
+            let currentHeight = parseInt(character.style.bottom.replace("px", ""));
+            const fallDown = setInterval(() => {
+                if (currentHeight <= 0) {
+                    clearInterval(fallDown);
+                    isJumping = false;
+                    isDoubleJumping = false;
+                }
+                currentHeight -= jumpSpeed;
+                character.style.bottom = `${currentHeight}px`;
+            }, 10);
+        }
+
+        // Move obstacles and detect collision
+        function moveObstacles() {
+            if (isGameOver) return;
+
+            obstacles.forEach((obstacle, index) => {
+                let currentPos = parseInt(obstacle.style.left.replace('px', ''));
+                let obstacleWidth = parseInt(obstacle.style.width.replace('px', ''));
+                let obstacleHeight = parseInt(obstacle.style.height.replace('px', ''));
+
+                // Increase speed at certain scores
+                if (score >= 1000 && score < 2500) {
+                    obstacleSpeed = 7;
+                } else if (score >= 2500 && score < 4000) {
+                    obstacleSpeed = 9;
+                } else if (score >= 4000) {
+                    obstacleSpeed = 12;
+                }
+
+                // Remove obstacles that go off-screen
+                if (currentPos < 0) {
+                    gameContainer.removeChild(obstacle);
+                    obstacles.splice(index, 1);
+                    let obstacleScore = calculateScore(obstacleWidth);
+                    score += obstacleScore;
+                    scoreElement.textContent = score;
+                } else {
+                    obstacle.style.left = `${currentPos - obstacleSpeed}px`;
+                }
+
+                if (
+                    currentPos < 100 && currentPos > 50 &&
+                    !isJumping
+                ) {
+                    let characterHeight = parseInt(character.style.bottom.replace("px", ""));
+                    if (characterHeight <= obstacleHeight) {
+                        gameOver();
+                    }
+                }
+
+                if (isJumping) {
+                    let characterHeight = parseInt(character.style.bottom.replace("px", ""));
+                    if (
+                        currentPos < 100 && currentPos > 50 &&
+                        characterHeight < obstacleHeight && characterHeight > (obstacleHeight - 50)
+                    ) {
+                        gameOver();
+                    }
+                }
+            });
+        }
+
+        // Game Over logic
+        function gameOver() {
+            isGameOver = true;
+            restartBtn.style.display = "block";
+            gameOverGif.style.display = "block";
+        }
+
+        // Game loop
+        function gameLoop() {
+            if (isGameOver) return;
+            moveObstacles();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Key listener for jumping
+        window.addEventListener("keydown", function(e) {
+            if (e.key === " " && !isJumping) {
+                if (!isDoubleJumping) {
+                    jump(false);
+                } else {
+                    jump(true);
+                }
+                if (!isDoubleJumping) {
+                    isDoubleJumping = true;
+                }
+            }
+        });
+
+        // Start the obstacle creation interval
+        obstacleInterval = setInterval(createObstacle, 2000);
+
+        // Restart the game
+        function restartGame() {
+            resetGameState();
+            gameLoop();
+        }
+
+        gameLoop();
+
+    </script>
+
+</body>
+</html>
